@@ -2,27 +2,41 @@
 #include <omp.h>
 #include <cstdlib>
 
+class Util
+{
+public:
+    static void fill_array_with_random_nums(int *array, int N)
+    {
+        for (int i = 0; i < N; ++i)
+        {
+            array[i] = rand();
+        }
+    }
+
+    static void beatiful_output(double parallel_time, long long sum)
+    {
+        std::cout << "Parallel working time = " << parallel_time << std::endl;
+        std::cout << "Sum = " << sum << std::endl;
+    }
+};
+
 int main()
 {
     int N = 1000000000;
-    long long x = 0;
+    long long sum = 0;
     int *array = new int[N];
-    for (int i = 0; i < N; ++i)
-        array[i] = rand();
+
+    Util::fill_array_with_random_nums(array, N);
 
     double start_time = omp_get_wtime();
-#pragma omp parallel for reduction(+ : x)
+#pragma omp parallel for reduction(+ : sum)
     for (int i = 0; i < N; ++i)
     {
-        x += array[i];
+        sum += array[i];
     }
     double end_time = omp_get_wtime();
-    double parallel_time = end_time - start_time;
-    std::cout << "Parallel working time = " << parallel_time << std::endl;
     delete[] array;
 
-    std::cout << "Difference parallel/single core = " << parallel_time << std::endl;
-    std::cout << "Sum = " << x << std::endl;
-
+    Util::beatiful_output(end_time - start_time, sum);
     return 0;
 }
