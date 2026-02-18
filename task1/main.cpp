@@ -1,0 +1,56 @@
+#include <iostream>
+#include <omp.h>
+#include <cstdlib>
+
+// Написать программу с использованием технологии OpenMP, которая решает
+// поставленную задачу. При этом вычислить максимальное, минимальное и среднее время
+// выполнения программы. Провести анализ для различной размерности задач при
+// различных значениях параметра schedule. Использовать распараллеливание при помощи
+// оператора цикла. Отчет должен содержать постановку задачи, краткое описание решения,
+// последовательную версию программы и параллельную (наиболее производительную) и
+// таблицу с результатами, выводы. Размеры массивов и N выбрать так, чтобы
+// последовательная версия работала заметное время (~0.1–2 сек), а ускорение было
+// измеримо
+
+
+// Вычисление суммы всех элементов целочисленного массива размером N.
+// Использовать редукцию.
+
+// максимальное вреия выполнения программы
+// минимальное вреия выполнения программы
+// среднее вреия выполнения программы
+// Провести анализ для различной размерности задач при различных значениях параметра schedule
+
+int main() {
+    int N = 1000000;
+    long long x = 0;
+    int* array = new int[N];
+    for (int i = 0; i < N; ++i)
+        array[i] = rand();
+
+
+    double start_time = omp_get_wtime();
+    #pragma omp parallel for reduction(+:x)
+    for (int i = 0; i < N; ++i) {
+        x += i;
+    }
+    double end_time = omp_get_wtime();
+    double parallel_time = end_time - start_time;
+    std::cout << "Parallel working time = " << parallel_time << std::endl;
+
+
+    start_time = omp_get_wtime();
+    x = 0;
+    for (int i = 0; i < N; ++i) {
+        x += i;
+    }
+    end_time = omp_get_wtime();
+
+    delete[] array;
+
+    std::cout << "Single core working time = " << end_time - start_time << std::endl;
+    std::cout << "Difference parallel/single core = " << (end_time - start_time)/parallel_time << std::endl;
+    std::cout << "Sum = " << x << std::endl;
+
+    return 0;
+}
