@@ -1,42 +1,43 @@
 #include <iostream>
+#include <random>
 #include <omp.h>
-#include <cstdlib>
 
-class Util
+namespace util
 {
-public:
-    static void fill_array_with_random_nums(int *array, int N)
+    void fill_array_with_random_nums(std::vector<int> &array)
     {
-        for (int i = 0; i < N; ++i)
+        std::mt19937 gen(std::random_device{}());
+        std::uniform_int_distribution<int> dist(0, RAND_MAX);
+
+        for (auto &value : array)
         {
-            array[i] = rand();
+            value = dist(gen);
         }
     }
 
-    static void beatiful_output(double parallel_time, long long sum)
+    void beautiful_output(double parallel_time, long long sum)
     {
-        std::cout << "Parallel working time = " << parallel_time << std::endl;
-        std::cout << "Sum = " << sum << std::endl;
+        std::cout << "Parallel working time = " << parallel_time << " sec\n";
+        std::cout << "Sum = " << sum << '\n';
     }
 };
 
 int main()
 {
-    int N = 1000000000;
+    const std::size_t N = 10000000;
+    std::vector<int> array(N);
     long long sum = 0;
-    int *array = new int[N];
 
-    Util::fill_array_with_random_nums(array, N);
+    util::fill_array_with_random_nums(array);
 
     double start_time = omp_get_wtime();
 #pragma omp parallel for reduction(+ : sum)
-    for (int i = 0; i < N; ++i)
+    for (std::size_t i = 0; i < N; ++i)
     {
         sum += array[i];
     }
     double end_time = omp_get_wtime();
-    delete[] array;
 
-    Util::beatiful_output(end_time - start_time, sum);
+    util::beautiful_output(end_time - start_time, sum);
     return 0;
 }
