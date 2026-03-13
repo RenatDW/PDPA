@@ -17,6 +17,7 @@ namespace util
 
     void beautiful_output(double parallel_time, long long sum)
     {
+        std::cout << "Num of threads = " << omp_get_max_threads() << "\n";
         std::cout << "Parallel working time = " << parallel_time << " sec\n";
         std::cout << "Sum = " << sum << '\n';
     }
@@ -24,7 +25,7 @@ namespace util
 
 int main()
 {
-    const std::size_t N = 10000000;
+    const std::size_t N = 1000000000;
     std::vector<int> array(N);
     long long sum = 0;
 
