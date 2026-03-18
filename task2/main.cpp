@@ -1,103 +1,84 @@
 #include <iostream>
-#include <fstream>
-#include <sstream>
-#include <string>
 #include <algorithm>
 #include <vector>
+#include <random>
+#include <cstdlib>
 #include <omp.h>
 
-bool parseArrayLine(const std::string &line, size_t expectedCount, std::vector<int> &out)
+// Вывод __int128
+void print_int128(__int128 x)
 {
-    std::istringstream iss(line);
-    int value = 0;
-    out.clear();
-
-    while (iss >> value)
+    if (x == 0)
     {
-        out.push_back(value);
+        std::cout << "0";
+        return;
     }
-
-    return out.size() == expectedCount;
+    if (x < 0)
+    {
+        std::cout << "-";
+        x = -x;
+    }
+    std::string s;
+    while (x > 0)
+    {
+        s = char('0' + x % 10) + s;
+        x /= 10;
+    }
+    std::cout << s;
 }
 
-bool readVectorsFromFile(const std::string &fileName, size_t &N, std::vector<int> &A, std::vector<int> &B)
-{
-    std::ifstream file(fileName);
-    if (!file.is_open())
-    {
-        std::cerr << "Не удалось открыть файл: " << fileName << "\n";
-        return false;
-    }
-
-    std::string line;
-    if (!std::getline(file, line))
-    {
-        std::cerr << "Файл пустой или отсутствует строка с N\n";
-        return false;
-    }
-
-    std::istringstream nStream(line);
-    if (!(nStream >> N) || N == 0)
-    {
-        std::cerr << "Некорректное значение N в первой строке\n";
-        return false;
-    }
-
-    const size_t matrixElements = N * N;
-
-    if (!std::getline(file, line) || !parseArrayLine(line, matrixElements, A))
-    {
-        std::cerr << "Некорректная строка для массива A: ожидалось " << matrixElements << " чисел\n";
-        return false;
-    }
-
-    if (!std::getline(file, line) || !parseArrayLine(line, matrixElements, B))
-    {
-        std::cerr << "Некорректная строка для массива B: ожидалось " << matrixElements << " чисел\n";
-        return false;
-    }
-
-    return true;
-}
-
-int main()
+int main(int argc, char *argv[])
 {
     omp_lock_t lock;
     omp_init_lock(&lock);
     int const TILE = 32;
 
     size_t N = 0;
-    std::vector<int> A;
-    std::vector<int> B;
-    if (!readVectorsFromFile("vectors.txt", N, A, B))
+    if (argc != 2)
     {
+        std::cerr << "Использование: " << argv[0] << " <N>\n";
         omp_destroy_lock(&lock);
         return 1;
     }
 
-    // long long traceSeq = 0;
-    long long tracePar = 0;
+    char *endPtr = nullptr;
+    unsigned long long parsedN = std::strtoull(argv[1], &endPtr, 10);
+    if (endPtr == argv[1] || *endPtr != '\0' || parsedN == 0)
+    {
+        std::cerr << "Некорректное значение N: " << argv[1] << "\n";
+        omp_destroy_lock(&lock);
+        return 1;
+    }
+    N = static_cast<size_t>(parsedN);
+
+    const size_t matrixElements = N * N;
+    std::vector<int> A(matrixElements);
+    std::vector<int> B(matrixElements);
+
+    // Воспроизводимая генерация случайных чисел (фиксированный seed)
+    std::mt19937 rng(42);
+    std::uniform_int_distribution<int> dist(-10, 10);
+    for (size_t idx = 0; idx < matrixElements; ++idx)
+    {
+        A[idx] = dist(rng);
+        B[idx] = dist(rng);
+    }
+
+    // __int128 traceSeq = 0;
+    __int128 tracePar = 0;
     const int n = static_cast<int>(N);
 
     auto index = [N](int i, int j)
     {
         return i * N + j;
     };
-    // // Последовательный подсчет trace(A * B): sum_i sum_k A[i,k] * B[k,i].
-    // double start_time = omp_get_wtime();
-    // for (int i = 0; i < n; i++)
-    //     for (int k = 0; k < n; k++)
-    //         traceSeq += 1LL * A[index(i, k)] * B[index(k, i)];
-    // double end_time = omp_get_wtime();
-
-    // std::cout << "Последовательно: " << traceSeq << " время : " << end_time - start_time << std::endl;
 
     double start_time = omp_get_wtime();
 #pragma omp parallel
     {
-        long long threadSum = 0;
+        __int128 threadSum = 0;
 
-#pragma omp for collapse(2) nowait
+#pragma omp for collapse(2) nowait schedule(static)
         for (int ii = 0; ii < n; ii += TILE)
             for (int kk = 0; kk < n; kk += TILE)
             {
@@ -116,7 +97,9 @@ int main()
         omp_unset_lock(&lock);
     }
     double end_time = omp_get_wtime();
-    std::cout << "Кол-во потоков = " << omp_get_max_threads() << "\nTrace(A*B) = " << tracePar << "\nВремя = " << end_time - start_time << std::endl;
+    std::cout << "Кол-во потоков = " << omp_get_max_threads() << "\nTrace(A*B) = ";
+    print_int128(tracePar);
+    std::cout << "\nВремя = " << end_time - start_time << std::endl;
     omp_destroy_lock(&lock);
     return 0;
 }
