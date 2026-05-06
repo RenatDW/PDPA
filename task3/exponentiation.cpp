@@ -8,79 +8,68 @@
 using namespace std;
 
 long long exponentiation_sequential(long long base, long long n) {
-    if (n == 0)
-        return 1;
-    if (n == 1)
-        return base;
-    
-    if (n % 2 == 0) {
-        long long half = exponentiation_sequential(base, n / 2);
-        return half * half;
-    } else {
-        return base * exponentiation_sequential(base, n - 1);
-    }
+    if (n == 0) return 1;
+    if (n == 1) return base;
+
+    long long left = exponentiation_sequential(base, n / 2);
+    long long right = exponentiation_sequential(base, n - n / 2);
+
+    return left * right;
 }
 
-long long exponentiation_for_parallel(long long base, long long n) {
-    long long result = 1;
-    long long current_power = base;
-    
-    #pragma omp parallel shared(result, current_power)
-    {
-        #pragma omp single
-        {
-            long long n_copy = n;
-            while (n_copy > 0) {
-                if (n_copy & 1) {
-                    #pragma omp critical
-                    result *= current_power;
-                }
-                current_power *= current_power;
-                n_copy >>= 1;
-            }
-        }
+long long exponentiation_for_parallel(long long base, long long n, int iterations) {
+    long long result = 0;
+
+    #pragma omp parallel for reduction(^:result)
+    for (int i = 0; i < iterations; i++) {
+        long long r = exponentiation_sequential(base, n);
+        result ^= r; // чтобы компилятор не выкинул
     }
+
     return result;
 }
 
+const int THRESHOLD = 20;
+
 long long exponentiation_tasks(long long base, long long n) {
-    if (n == 0)
-        return 1;
-    if (n == 1)
-        return base;
-    
-    if (n % 2 == 0) {
-        long long half_result = 0;
-        
-        #pragma omp task shared(half_result) firstprivate(base, n)
-        {
-            half_result = exponentiation_tasks(base, n / 2);
-        }
-        
-        #pragma omp taskwait
-        return half_result * half_result;
-    } else {
-        long long recursive_result = 0;
-        
-        #pragma omp task shared(recursive_result) firstprivate(base, n)
-        {
-            recursive_result = exponentiation_tasks(base, n - 1);
-        }
-        
-        #pragma omp taskwait
-        return base * recursive_result;
+    if (n == 0) return 1;
+    if (n == 1) return base;
+
+    // threshold — обязательно
+    if (n < THRESHOLD) {
+        return exponentiation_sequential(base, n);
     }
+
+    long long left = 0;
+    long long right = 0;
+
+    #pragma omp task shared(left) firstprivate(base, n)
+    {
+        left = exponentiation_tasks(base, n / 2);
+    }
+
+    #pragma omp task shared(right) firstprivate(base, n)
+    {
+        right = exponentiation_tasks(base, n - n / 2);
+    }
+
+    #pragma omp taskwait
+
+    return left * right;
 }
+
 
 long long exponentiation_tasks_parallel(long long base, long long n) {
     long long result = 0;
-    #pragma omp parallel shared(result) firstprivate(base, n)
+
+    #pragma omp parallel
     {
         #pragma omp single
         {
             result = exponentiation_tasks(base, n);
         }
     }
+
     return result;
 }
 
@@ -93,10 +82,12 @@ struct TimingResult {
 TimingResult benchmark_version(long long base, long long n, int num_runs,
                                long long (*func)(long long, long long)) {
     vector<double> times;
-    
+    static volatile long long sink = 0;
+
     for (int run = 0; run < num_runs; run++) {
         auto start = chrono::high_resolution_clock::now();
-        func(base, n);
+        long long r = func(base, n);
+        sink ^= r;
         auto end = chrono::high_resolution_clock::now();
         times.push_back(chrono::duration<double>(end - start).count());
     }
@@ -134,8 +125,8 @@ void benchmark(long long base, long long n, int num_threads, int num_runs = 3) {
         
 
 int main() {
-    long long base = 2;
-    long long n = 50;
+    long long base = 37;
+    long long n = 100;
     
     cout << "Fast Exponentiation with OpenMP Tasks\n";
     cout << "=====================================\n";
